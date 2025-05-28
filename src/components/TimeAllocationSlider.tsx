@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   Box, 
-  Slider, 
   Typography, 
   Paper, 
   Button, 
@@ -11,10 +10,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  InputAdornment,
   Alert,
   Snackbar,
-  Grid
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon, Settings as SettingsIcon } from '@mui/icons-material';
 
@@ -48,7 +45,9 @@ const TimeAllocationSlider: React.FC = () => {
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [newCategory, setNewCategory] = useState({ name: '', color: '#000000' });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [selectedBlock, setSelectedBlock] = useState<number | null>(null);
+  const [draggingHandle, setDraggingHandle] = useState<number | null>(null);
+  const [dragStartX, setDragStartX] = useState<number>(0);
+  const [dragStartTime, setDragStartTime] = useState<number>(0);
 
   const formatTime = (hour: number) => {
     const period = hour >= 12 ? 'PM' : 'AM';
@@ -97,95 +96,53 @@ const TimeAllocationSlider: React.FC = () => {
     setIsSettingsDialogOpen(false);
   };
 
-  const handleOpenSettings = () => {
-    setTempTimeRange(timeRange);
-    setIsSettingsDialogOpen(true);
+  const handleMouseDown = (index: number, event: React.MouseEvent) => {
+    setDraggingHandle(index);
+    setDragStartX(event.clientX);
+    setDragStartTime(timeBlocks[index].end);
+  };
+
+  const handleMouseMove = (event: React.MouseEvent) => {
+    if (draggingHandle === null) return;
+
+    const container = event.currentTarget.getBoundingClientRect();
+    const totalWidth = container.width;
+    const pixelsPerHour = totalWidth / (timeRange.end - timeRange.start);
+    
+    const deltaX = event.clientX - dragStartX;
+    const deltaHours = deltaX / pixelsPerHour;
+    const newTime = Math.max(0, Math.min(24, dragStartTime + deltaHours));
+    
+    // Round to nearest 30 minutes
+    const roundedTime = Math.round(newTime * 2) / 2;
+
+    // Ensure minimum block duration of 30 minutes
+    const prevBlock = timeBlocks[draggingHandle];
+    const nextBlock = timeBlocks[draggingHandle + 1];
+    
+    if (roundedTime - prevBlock.start < 0.5 || nextBlock.end - roundedTime < 0.5) {
+      return;
+    }
+
+    const newTimeBlocks = [...timeBlocks];
+    newTimeBlocks[draggingHandle] = {
+      ...prevBlock,
+      end: roundedTime
+    };
+    newTimeBlocks[draggingHandle + 1] = {
+      ...nextBlock,
+      start: roundedTime
+    };
+
+    setTimeBlocks(newTimeBlocks);
+  };
+
+  const handleMouseUp = () => {
+    setDraggingHandle(null);
   };
 
   const handleAcceptTimeRange = () => {
     handleTimeRangeChange(tempTimeRange);
-  };
-
-  const handleBlockChange = (index: number, newValue: number[]) => {
-    const [newStart, newEnd] = newValue;
-    const newTimeBlocks = [...timeBlocks];
-    
-    // Ensure minimum block duration of 30 minutes
-    if (newEnd - newStart < 0.5) {
-      setErrorMessage('Time blocks must be at least 30 minutes long');
-      return;
-    }
-
-    // Get adjacent blocks
-    const prevBlock = index > 0 ? newTimeBlocks[index - 1] : null;
-    const nextBlock = index < newTimeBlocks.length - 1 ? newTimeBlocks[index + 1] : null;
-
-    // Calculate the total change in time
-    const startDiff = newStart - timeBlocks[index].start;
-    const endDiff = newEnd - timeBlocks[index].end;
-
-    // Update the current block
-    newTimeBlocks[index] = {
-      ...newTimeBlocks[index],
-      start: newStart,
-      end: newEnd,
-    };
-
-    // Adjust previous block if moving start time
-    if (prevBlock && startDiff !== 0) {
-      newTimeBlocks[index - 1] = {
-        ...prevBlock,
-        end: newStart,
-      };
-    }
-
-    // Adjust next block if moving end time
-    if (nextBlock && endDiff !== 0) {
-      newTimeBlocks[index + 1] = {
-        ...nextBlock,
-        start: newEnd,
-      };
-    }
-
-    // Ensure blocks don't go beyond time range
-    if (newTimeBlocks[index].end > timeRange.end) {
-      newTimeBlocks[index] = {
-        ...newTimeBlocks[index],
-        end: timeRange.end,
-      };
-      if (nextBlock) {
-        newTimeBlocks[index + 1] = {
-          ...nextBlock,
-          start: timeRange.end,
-        };
-      }
-    }
-
-    // Ensure blocks don't start before time range
-    if (newTimeBlocks[index].start < timeRange.start) {
-      newTimeBlocks[index] = {
-        ...newTimeBlocks[index],
-        start: timeRange.start,
-      };
-      if (prevBlock) {
-        newTimeBlocks[index - 1] = {
-          ...prevBlock,
-          end: timeRange.start,
-        };
-      }
-    }
-
-    // Ensure minimum block duration for adjacent blocks
-    if (prevBlock && newTimeBlocks[index - 1].end - newTimeBlocks[index - 1].start < 0.5) {
-      setErrorMessage('Time blocks must be at least 30 minutes long');
-      return;
-    }
-    if (nextBlock && newTimeBlocks[index + 1].end - newTimeBlocks[index + 1].start < 0.5) {
-      setErrorMessage('Time blocks must be at least 30 minutes long');
-      return;
-    }
-
-    setTimeBlocks(newTimeBlocks);
   };
 
   const handleAddCategory = () => {
@@ -204,8 +161,11 @@ const TimeAllocationSlider: React.FC = () => {
   };
 
   const handleRemoveCategory = (index: number) => {
+    if (timeBlocks.length <= 1) {
+      setErrorMessage('Cannot remove the last category');
+      return;
+    }
     const newTimeBlocks = timeBlocks.filter((_, i) => i !== index);
-    // Adjust the end time of the previous block to fill the gap
     if (index > 0 && index < timeBlocks.length) {
       newTimeBlocks[index - 1] = {
         ...newTimeBlocks[index - 1],
@@ -213,7 +173,6 @@ const TimeAllocationSlider: React.FC = () => {
       };
     }
     setTimeBlocks(newTimeBlocks);
-    setSelectedBlock(null);
   };
 
   // Calculate time markers based on the time range
@@ -253,7 +212,7 @@ const TimeAllocationSlider: React.FC = () => {
           <Button
             variant="outlined"
             startIcon={<SettingsIcon />}
-            onClick={handleOpenSettings}
+            onClick={() => setIsSettingsDialogOpen(true)}
             sx={{ 
               color: 'white',
               borderColor: 'rgba(255, 255, 255, 0.3)',
@@ -281,7 +240,17 @@ const TimeAllocationSlider: React.FC = () => {
         </Box>
       </Box>
 
-      <Box sx={{ position: 'relative', mb: 4 }}>
+      <Box 
+        sx={{ 
+          position: 'relative', 
+          mb: 4,
+          userSelect: 'none',
+          cursor: draggingHandle !== null ? 'col-resize' : 'default'
+        }}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      >
         {/* Time markers */}
         <Box sx={{ position: 'relative', height: 24, mb: 1 }}>
           {timeMarkers.map((time, index) => (
@@ -324,93 +293,82 @@ const TimeAllocationSlider: React.FC = () => {
         {/* Time blocks */}
         <Box sx={{ position: 'relative', height: 40 }}>
           {timeBlocks.map((block, index) => (
-            <Box
-              key={index}
-              sx={{
-                position: 'absolute',
-                left: `${((block.start - timeRange.start) / (timeRange.end - timeRange.start)) * 100}%`,
-                width: `${((block.end - block.start) / (timeRange.end - timeRange.start)) * 100}%`,
-                height: 40,
-                backgroundColor: block.color,
-                borderRadius: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                '&:hover': {
-                  filter: 'brightness(1.1)',
-                },
-              }}
-              onClick={() => setSelectedBlock(index)}
-            >
-              <Typography 
-                variant="body2" 
-                sx={{ 
-                  color: 'white',
-                  textShadow: '0 1px 2px rgba(0,0,0,0.5)',
-                  fontWeight: 'bold',
-                  textAlign: 'center',
-                  px: 1,
+            <React.Fragment key={index}>
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: `${((block.start - timeRange.start) / (timeRange.end - timeRange.start)) * 100}%`,
+                  width: `${((block.end - block.start) / (timeRange.end - timeRange.start)) * 100}%`,
+                  height: 40,
+                  backgroundColor: block.color,
+                  borderRadius: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
-                {block.category}
-              </Typography>
-            </Box>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: 'white',
+                    textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    px: 1,
+                  }}
+                >
+                  {block.category}
+                </Typography>
+              </Box>
+              
+              {/* Handle between blocks */}
+              {index < timeBlocks.length - 1 && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    left: `${((block.end - timeRange.start) / (timeRange.end - timeRange.start)) * 100}%`,
+                    top: 0,
+                    width: '16px',
+                    height: '100%',
+                    cursor: 'col-resize',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transform: 'translateX(-50%)',
+                    '&:hover::before': {
+                      content: '""',
+                      position: 'absolute',
+                      width: '4px',
+                      height: '100%',
+                      backgroundColor: 'white',
+                      opacity: 0.5,
+                      borderRadius: '2px',
+                    },
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      width: '4px',
+                      height: '100%',
+                      backgroundColor: draggingHandle === index ? 'white' : 'rgba(255, 255, 255, 0.2)',
+                      opacity: draggingHandle === index ? 0.8 : 0.2,
+                      borderRadius: '2px',
+                    },
+                    '&:hover::after': {
+                      content: '""',
+                      position: 'absolute',
+                      width: '12px',
+                      height: '24px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: '6px',
+                    },
+                  }}
+                  onMouseDown={(e) => handleMouseDown(index, e)}
+                />
+              )}
+            </React.Fragment>
           ))}
         </Box>
       </Box>
-
-      {/* Selected block controls */}
-      {selectedBlock !== null && (
-        <Box
-          sx={{
-            position: 'absolute',
-            bottom: '100%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(30, 30, 30, 0.95)',
-            p: 2,
-            borderRadius: 2,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-            mb: 2,
-            minWidth: 300,
-          }}
-        >
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="subtitle1" sx={{ color: 'white' }}>
-              {timeBlocks[selectedBlock].category}
-            </Typography>
-            <IconButton
-              size="small"
-              onClick={() => handleRemoveCategory(selectedBlock)}
-              sx={{ color: 'white' }}
-            >
-              <DeleteIcon />
-            </IconButton>
-          </Box>
-          <Slider
-            value={[timeBlocks[selectedBlock].start, timeBlocks[selectedBlock].end]}
-            onChange={(_, newValue) => handleBlockChange(selectedBlock, newValue as number[])}
-            min={timeRange.start}
-            max={timeRange.end}
-            step={0.5}
-            valueLabelDisplay="auto"
-            valueLabelFormat={(value) => formatTime(value)}
-            sx={{
-              color: timeBlocks[selectedBlock].color,
-              '& .MuiSlider-thumb': {
-                backgroundColor: timeBlocks[selectedBlock].color,
-              },
-              '& .MuiSlider-track': {
-                backgroundColor: timeBlocks[selectedBlock].color,
-              },
-              '& .MuiSlider-rail': {
-                backgroundColor: 'rgba(255, 255, 255, 0.2)',
-              },
-            }}
-          />
-        </Box>
-      )}
 
       {/* Add Category Dialog */}
       <Dialog 
