@@ -31,6 +31,9 @@ interface TimeRange {
 }
 
 const TimeAllocationSlider: React.FC = () => {
+  // Test comment 1: This component manages daily time allocation
+  // Test comment 2: It allows users to create and modify time blocks
+  // Test comment 3: Each block represents a different activity or category
   const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([
     { start: 0, end: 4, category: 'Sleep', color: '#2196f3' },
     { start: 4, end: 8, category: 'Work', color: '#4caf50' },
