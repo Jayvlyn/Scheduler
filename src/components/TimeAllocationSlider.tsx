@@ -315,6 +315,11 @@ const TimeAllocationSlider: React.FC = () => {
                     fontWeight: 'bold',
                     textAlign: 'center',
                     px: 1,
+                    pointerEvents: 'none',
+                    maxWidth: 'calc(100% - 16px)', // Leave space for handles
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {block.category}
@@ -328,7 +333,7 @@ const TimeAllocationSlider: React.FC = () => {
                     position: 'absolute',
                     left: `${((block.end - timeRange.start) / (timeRange.end - timeRange.start)) * 100}%`,
                     top: 0,
-                    width: '16px',
+                    width: '24px',
                     height: '100%',
                     cursor: 'col-resize',
                     display: 'flex',
@@ -341,7 +346,7 @@ const TimeAllocationSlider: React.FC = () => {
                       width: '4px',
                       height: '100%',
                       backgroundColor: 'white',
-                      opacity: 0.5,
+                      opacity: 0.9,
                       borderRadius: '2px',
                     },
                     '&::before': {
@@ -349,21 +354,50 @@ const TimeAllocationSlider: React.FC = () => {
                       position: 'absolute',
                       width: '4px',
                       height: '100%',
-                      backgroundColor: draggingHandle === index ? 'white' : 'rgba(255, 255, 255, 0.2)',
-                      opacity: draggingHandle === index ? 0.8 : 0.2,
+                      backgroundColor: draggingHandle === index ? 'white' : 'rgba(255, 255, 255, 0.7)',
+                      opacity: draggingHandle === index ? 1 : 0.7,
                       borderRadius: '2px',
                     },
                     '&:hover::after': {
                       content: '""',
                       position: 'absolute',
-                      width: '12px',
-                      height: '24px',
-                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                      borderRadius: '6px',
+                      width: '20px',
+                      height: '32px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                      borderRadius: '10px',
+                    },
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      width: '16px',
+                      height: '28px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      borderRadius: '8px',
                     },
                   }}
                   onMouseDown={(e) => handleMouseDown(index, e)}
-                />
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      position: 'absolute',
+                      top: -24,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 500,
+                      whiteSpace: 'nowrap',
+                      textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                      opacity: draggingHandle === index ? 1 : 0.7,
+                      transition: 'opacity 0.2s',
+                      pointerEvents: 'none',
+                      zIndex: 1,
+                    }}
+                  >
+                    {formatTime(block.end)}
+                  </Typography>
+                </Box>
               )}
             </React.Fragment>
           ))}
