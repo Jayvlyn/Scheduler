@@ -69,29 +69,28 @@ const TimeAllocationSlider: React.FC = () => {
       return;
     }
 
-    // Adjust time blocks to fit within the new range
-    const newTimeBlocks = timeBlocks.map(block => {
-      const blockDuration = block.end - block.start;
-      const newStart = Math.max(newRange.start, block.start);
-      const newEnd = Math.min(newRange.end, block.end);
-      
-      // If block is completely outside new range, adjust it to start at the beginning
-      if (newStart >= newRange.end || newEnd <= newRange.start) {
-        return {
-          ...block,
-          start: newRange.start,
-          end: Math.min(newRange.start + blockDuration, newRange.end)
-        };
-      }
-
+    // Filter out blocks that are completely outside the new range
+    const newTimeBlocks = timeBlocks.filter(block => {
+      // Keep blocks that overlap with the new range
+      return !(block.end <= newRange.start || block.start >= newRange.end);
+    }).map(block => {
+      // Adjust the block's start and end times to fit within the new range
       return {
         ...block,
-        start: newStart,
-        end: newEnd
+        start: Math.max(newRange.start, block.start),
+        end: Math.min(newRange.end, block.end)
       };
     });
 
-    setTimeBlocks(newTimeBlocks);
+    // Remove blocks that are too small (less than 30 minutes)
+    const filteredBlocks = newTimeBlocks.filter(block => block.end - block.start >= 0.5);
+
+    // If we removed blocks, show a message
+    if (filteredBlocks.length < timeBlocks.length) {
+      setErrorMessage('Some time blocks were removed as they were outside or too small for the new time range');
+    }
+
+    setTimeBlocks(filteredBlocks);
     setTimeRange(newRange);
     setIsSettingsDialogOpen(false);
   };
@@ -165,13 +164,41 @@ const TimeAllocationSlider: React.FC = () => {
       setErrorMessage('Cannot remove the last category');
       return;
     }
-    const newTimeBlocks = timeBlocks.filter((_, i) => i !== index);
-    if (index > 0 && index < timeBlocks.length) {
-      newTimeBlocks[index - 1] = {
-        ...newTimeBlocks[index - 1],
-        end: timeBlocks[index].end,
+
+    const newTimeBlocks = [...timeBlocks];
+    const removedBlock = newTimeBlocks[index];
+    
+    // If this is the first block, extend the next block to the start
+    if (index === 0) {
+      newTimeBlocks[1] = {
+        ...newTimeBlocks[1],
+        start: timeRange.start
       };
     }
+    // If this is the last block, extend the previous block to the end
+    else if (index === timeBlocks.length - 1) {
+      newTimeBlocks[index - 1] = {
+        ...newTimeBlocks[index - 1],
+        end: timeRange.end
+      };
+    }
+    // If this is a middle block, distribute its time to adjacent blocks
+    else {
+      const timeToDistribute = removedBlock.end - removedBlock.start;
+      const halfTime = timeToDistribute / 2;
+      
+      newTimeBlocks[index - 1] = {
+        ...newTimeBlocks[index - 1],
+        end: newTimeBlocks[index - 1].end + halfTime
+      };
+      newTimeBlocks[index + 1] = {
+        ...newTimeBlocks[index + 1],
+        start: newTimeBlocks[index + 1].start - halfTime
+      };
+    }
+
+    // Remove the block
+    newTimeBlocks.splice(index, 1);
     setTimeBlocks(newTimeBlocks);
   };
 
@@ -321,7 +348,7 @@ const TimeAllocationSlider: React.FC = () => {
                     textAlign: 'center',
                     px: 1,
                     pointerEvents: 'none',
-                    maxWidth: 'calc(100% - 16px)', // Leave space for handles
+                    maxWidth: 'calc(100% - 16px)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -329,6 +356,25 @@ const TimeAllocationSlider: React.FC = () => {
                 >
                   {block.category}
                 </Typography>
+                <IconButton
+                  size="small"
+                  onClick={() => handleRemoveCategory(index)}
+                  sx={{
+                    position: 'absolute',
+                    right: 4,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'white',
+                    opacity: 0.7,
+                    '&:hover': {
+                      opacity: 1,
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    },
+                    padding: '2px',
+                  }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
               </Box>
               
               {/* Handle between blocks */}
