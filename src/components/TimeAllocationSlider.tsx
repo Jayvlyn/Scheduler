@@ -176,7 +176,7 @@ const TimeAllocationSlider: React.FC = () => {
   };
 
   // Calculate time markers based on the time range
-  const timeMarkers = [];
+  const timeMarkers: number[] = [];
   const range = timeRange.end - timeRange.start;
   const interval = Math.ceil(range / 4); // Show 4 markers
   for (let i = timeRange.start; i <= timeRange.end; i += interval) {
@@ -185,6 +185,11 @@ const TimeAllocationSlider: React.FC = () => {
   if (!timeMarkers.includes(timeRange.end)) {
     timeMarkers.push(timeRange.end);
   }
+
+  // Helper function to check if a time aligns with markers
+  const isTimeAlignedWithMarker = (time: number) => {
+    return timeMarkers.some(marker => Math.abs(marker - time) < 0.01);
+  };
 
   return (
     <Paper 
@@ -393,6 +398,7 @@ const TimeAllocationSlider: React.FC = () => {
                       transition: 'opacity 0.2s',
                       pointerEvents: 'none',
                       zIndex: 1,
+                      display: isTimeAlignedWithMarker(block.end) ? 'none' : 'block',
                     }}
                   >
                     {formatTime(block.end)}
